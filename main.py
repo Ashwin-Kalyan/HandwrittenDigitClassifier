@@ -36,6 +36,7 @@ import pandas as pd
 import numpy as np
 from matplotlib import pyplot as plt
 
+# Load and prepare data
 data = pd.read_csv("train.csv")
 data = np.array(data)
 
@@ -54,17 +55,17 @@ X_train = X_train / 255.0
 _, m_train = X_train.shape
 
 def init_params():
-    W1 = np.random.rand(10, 784) - 0.5
-    B1 = np.random.rand(10, 1) - 0.5
-    W2 = np.random.rand(10, 10) - 0.5
-    B2 = np.random.rand(10, 1) - 0.5
+    W1 = np.random.randn(32, 784) * np.sqrt(1.0/784)
+    B1 = np.zeros((32, 1))
+    W2 = np.random.randn(10, 32) * np.sqrt(1.0/32)
+    B2 = np.zeros((10, 1))
     return W1, B1, W2, B2
 
 def ReLU(Z):
     return np.maximum(Z, 0)
 
 def softmax(Z):
-    exp_Z = np.exp(Z - np.max(Z))  # Improve numerical stability
+    exp_Z = np.exp(Z - np.max(Z))
     return exp_Z / exp_Z.sum(axis=0, keepdims=True)
  
 def forward_propagation(W1, B1, W2, B2, X):
@@ -75,7 +76,7 @@ def forward_propagation(W1, B1, W2, B2, X):
     return Z1, A1, Z2, A2
 
 def one_hot(Y):
-    one_hot_Y = np.zeros((Y.size, Y.max() + 1))
+    one_hot_Y = np.zeros((Y.size, 10))
     one_hot_Y[np.arange(Y.size), Y] = 1
     one_hot_Y = one_hot_Y.T
     return one_hot_Y
@@ -83,13 +84,14 @@ def one_hot(Y):
 def derivative_ReLU(Z):
     return Z > 0
 
-def back_propagation(Z1, A1, Z2, A2, W1, W2, X, Y):
+def back_propagation(Z1, A1, Z2, A2, W1, W2, X, Y, lamda_reg):
+    m = Y.size
     one_hot_Y = one_hot(Y)
     dZ2 = A2 - one_hot_Y
-    dW2 = 1 / m * dZ2.dot(A1.T)
+    dW2 = 1 / m * dZ2.dot(A1.T) + (lamda_reg * W2)
     db2 = 1 / m * np.sum(dZ2, axis=1, keepdims=True)
     dZ1 = W2.T.dot(dZ2) * derivative_ReLU(Z1)
-    dW1 = 1 / m * dZ1.dot(X.T)
+    dW1 = 1 / m * dZ1.dot(X.T) + (lamda_reg * W1)
     db1 = 1 / m * np.sum(dZ1, axis=1, keepdims=True)
     return dW1, db1, dW2, db2
 
@@ -104,19 +106,62 @@ def get_predictions(A2):
     return np.argmax(A2, 0)
 
 def get_accuracy(predictions, Y):
-    print(predictions, Y)
-    return (np.sum(predictions == Y) / Y.size)
+    return np.mean(predictions == Y)
 
-def gradient_descent(X, Y, iterations, alpha):
+def gradient_descent(X, Y, iterations, batch_size, initial_alpha):
     W1, b1, W2, b2 = init_params()
+    m = X.shape[1]
+    
+    # Early stopping variables
+    best_dev_acc = 0
+    no_improve = 0
+    patience = 20
+    
     for i in range(iterations):
-        Z1, A1, Z2, A2 = forward_propagation(W1, b1, W2, b2, X)
-        dW1, db1, dW2, db2 = back_propagation(Z1, A1, Z2, A2, W1, W2, X, Y)
-        W1, b1, W2, b2 = update_params(W1, b1, W2, b2, dW1, db1, dW2, db2, alpha)
-        if i % 10 == 0:
-            print("Iteration: ", i)
-            predictions = get_predictions(A2)
-            print(get_accuracy(predictions, Y))
+        # Shuffle data
+        perm = np.random.permutation(m)
+        X_shuffled = X[:, perm]
+        Y_shuffled = Y[perm]
+        
+        # Learning rate decay
+        alpha = initial_alpha * (0.95 ** (i//100))
+        
+        # Mini-batch processing
+        for j in range(0, m, batch_size):
+            end_idx = min(j + batch_size, m)
+            X_batch = X_shuffled[:, j:end_idx]
+            Y_batch = Y_shuffled[j:end_idx]
+            
+            # Forward and backward pass
+            Z1, A1, Z2, A2 = forward_propagation(W1, b1, W2, b2, X_batch)
+            dW1, db1, dW2, db2 = back_propagation(Z1, A1, Z2, A2, W1, W2, X_batch, Y_batch, 0.01)
+            W1, b1, W2, b2 = update_params(W1, b1, W2, b2, dW1, db1, dW2, db2, alpha)
+        
+        # Evaluation
+        if i % 50 == 0:
+            # Calculate training accuracy on last batch
+            train_pred = get_predictions(A2)
+            train_acc = get_accuracy(train_pred, Y_batch)
+            
+            # Calculate dev set accuracy
+            _, _, _, A2_dev = forward_propagation(W1, b1, W2, b2, X_dev)
+            dev_pred = get_predictions(A2_dev)
+            dev_acc = get_accuracy(dev_pred, Y_dev)
+            
+            print(f"Iter {i}: Train Acc={train_acc:.4f}, Dev Acc={dev_acc:.4f}, LR={alpha:.6f}")
+            
+            # Early stopping check
+            if dev_acc > best_dev_acc:
+                best_dev_acc = dev_acc
+                no_improve = 0
+            else:
+                no_improve += 1
+                if no_improve >= patience:
+                    print(f"Early stopping at iteration {i} - no improvement for {patience} evaluations")
+                    print(f"Best dev accuracy: {best_dev_acc:.4f}")
+                    return W1, b1, W2, b2
+    
     return W1, b1, W2, b2
 
-W1, B1, W2, B2 = gradient_descent(X_train, Y_train, 5000, 0.01)
+# Train the model
+W1, B1, W2, B2 = gradient_descent(X_train, Y_train, 10000, 64, 0.05)
