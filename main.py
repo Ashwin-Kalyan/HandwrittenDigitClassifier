@@ -121,7 +121,7 @@ def gradient_descent(X, Y, iterations, batch_size, initial_alpha):
             remaining = (iterations-i) * (elapsed/(i+1))
             
             print(f"Iter {i}: {elapsed:.1f}s | ~{remaining:.1f}s remaining | "
-                  f"Train: {train_acc:.10f} | Dev: {dev_acc:.10f} | LR: {alpha:.10f}")
+                  f"Train: {train_acc:.3f} | Dev: {dev_acc:.3f} | LR: {alpha:.3f}")
             
             # Early stopping check
             if dev_acc > best_dev_acc + min_improvement:
@@ -131,7 +131,7 @@ def gradient_descent(X, Y, iterations, batch_size, initial_alpha):
                 no_improve += 1
                 if no_improve >= patience:
                     print(f"\nEarly stopping at iteration {i}")
-                    print(f"Best dev accuracy: {best_dev_acc:.4f}")
+                    print(f"Best dev accuracy: {best_dev_acc:.4f}\n")
                     return W1, b1, W2, b2
     
     return W1, b1, W2, b2
