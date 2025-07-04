@@ -1,10 +1,11 @@
 import pandas as pd 
 import numpy as np
 import time
+import math
 from matplotlib import pyplot as plt
 
 # Load and prepare data
-data = pd.read_csv("train.csv")
+data = pd.read_csv(r"C:\Users\ashwi\OneDrive\Desktop\GitHub\HandwrittenDigitClassifier\HandwrittenDigitClassifier\train.csv")
 data = np.array(data)
 m, n = data.shape
 np.random.shuffle(data)
@@ -21,9 +22,9 @@ _, m_train = X_train.shape
 
 # Optimized initialization with bigger hidden layer
 def init_params():
-    W1 = np.random.randn(64, 784) * np.sqrt(1.0/784)  # Reduced from 128 to 64
+    W1 = np.random.randn(64, 784) * np.sqrt(2.0/848.0)  # Increased neurons, Xavier initialization
     B1 = np.zeros((64, 1))
-    W2 = np.random.randn(10, 64) * np.sqrt(1.0/64)   # Adjusted to match
+    W2 = np.random.randn(10, 64) * np.sqrt(2.0/74.0)   # Adjusted to match
     B2 = np.zeros((10, 1))
     return W1, B1, W2, B2
 
@@ -54,10 +55,10 @@ def back_propagation(Z1, A1, Z2, A2, W1, W2, X, Y, lamda_reg):
     m = Y.size
     one_hot_Y = one_hot(Y)
     dZ2 = A2 - one_hot_Y
-    dW2 = (dZ2 @ A1.T) / m + (lamda_reg * W2)
+    dW2 = (dZ2 @ A1.T) / m + ((lamda_reg / m) * W2)
     db2 = np.sum(dZ2, axis=1, keepdims=True) / m
     dZ1 = W2.T @ dZ2 * derivative_ReLU(Z1)
-    dW1 = (dZ1 @ X.T) / m + (lamda_reg * W1)
+    dW1 = (dZ1 @ X.T) / m + ((lamda_reg / m) * W1)
     db1 = np.sum(dZ1, axis=1, keepdims=True) / m
     return dW1, db1, dW2, db2
 
@@ -100,7 +101,10 @@ def gradient_descent(X, Y, iterations, batch_size, initial_alpha):
             Y_shuffled = Y[perm]
         
         # Learning rate decay
-        alpha = initial_alpha * (0.95 ** (i//100))
+        n_min = 0.01
+        t = i
+        T = iterations
+        alpha = n_min + 0.5 * (initial_alpha - n_min) * (1 + math.cos((math.pi * t) / T))
         
         # Process batches
         for X_batch, Y_batch in batch_generator(X_shuffled, Y_shuffled, batch_size):
@@ -121,7 +125,7 @@ def gradient_descent(X, Y, iterations, batch_size, initial_alpha):
             remaining = (iterations-i) * (elapsed/(i+1))
             
             print(f"Iter {i}: {elapsed:.1f}s | ~{remaining:.1f}s remaining | "
-                  f"Train: {train_acc:.3f} | Dev: {dev_acc:.3f} | LR: {alpha:.3f}")
+                  f"Train: {train_acc:.3f} | Dev: {dev_acc:.3f} | LR: {alpha:.5f}")
             
             # Early stopping check
             if dev_acc > best_dev_acc + min_improvement:
